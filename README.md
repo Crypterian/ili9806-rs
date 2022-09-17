@@ -1,6 +1,10 @@
 # `ili9806`
 
-> A platform agnostic driver to interface with the ILI9806 TFT LCD display
+> A platform agnostic driver to interface with the ILI9806 TFT LCD display.
+
+[Board data sheet](https://doc.smartpanle.cn/_static/espboard/ESP32S3/ZX3D95CE01S-UR/ZX3D95CE01S-UR-4848.pdf)
+
+[ILI9806 data sheet](https://focuslcds.com/content/ILI9806.pdf)
 
 ## What works
 

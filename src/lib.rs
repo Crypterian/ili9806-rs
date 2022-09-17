@@ -1,6 +1,6 @@
 #![no_std]
 
-//! ILI9341 Display Driver
+//! ILI9806 Display Driver
 //!
 //! ### Usage
 //!
@@ -12,12 +12,12 @@
 //! ```ignore
 //! let iface = SPIInterface::new(spi, dc, cs);
 //!
-//! let mut display = Ili9341::new(
+//! let mut display = Ili9806::new(
 //!     iface,
 //!     reset_gpio,
 //!     &mut delay,
 //!     Orientation::Landscape,
-//!     ili9341::DisplaySize240x320,
+//!     ili9806::DisplaySize480x480,
 //! )
 //! .unwrap();
 //!
@@ -25,8 +25,8 @@
 //! ```
 //!
 //! [display-interface-spi crate]: https://crates.io/crates/display-interface-spi
-use embedded_hal::delay::blocking::DelayUs;
-use embedded_hal::digital::blocking::OutputPin;
+use embedded_hal::blocking::delay::DelayMs;
+use embedded_hal::digital::v2::OutputPin;
 
 use core::iter::once;
 use display_interface::DataFormat::{U16BEIter, U8Iter};
@@ -49,19 +49,11 @@ pub trait DisplaySize {
     const HEIGHT: usize;
 }
 
-/// Generic display size of 240x320 pixels
-pub struct DisplaySize240x320;
+/// Generic display size of 480x480 pixels
+pub struct DisplaySize480x480;
 
-impl DisplaySize for DisplaySize240x320 {
-    const WIDTH: usize = 240;
-    const HEIGHT: usize = 320;
-}
-
-/// Generic display size of 320x480 pixels
-pub struct DisplaySize320x480;
-
-impl DisplaySize for DisplaySize320x480 {
-    const WIDTH: usize = 320;
+impl DisplaySize for DisplaySize480x480 {
+    const WIDTH: usize = 480;
     const HEIGHT: usize = 480;
 }
 
@@ -110,7 +102,7 @@ pub enum ModeState {
 }
 
 /// There are two method for drawing to the screen:
-/// [Ili9341::draw_raw_iter] and [Ili9341::draw_raw_slice]
+/// [Ili9806::draw_raw_iter] and [Ili9806::draw_raw_slice]
 ///
 /// In both cases the expected pixel format is rgb565.
 ///
@@ -124,7 +116,7 @@ pub enum ModeState {
 /// - As soon as a pixel is received, an internal counter is incremented,
 ///   and the next word will fill the next pixel (the adjacent on the right, or
 ///   the first of the next row if the row ended)
-pub struct Ili9341<IFACE, RESET> {
+pub struct Ili9806<IFACE, RESET> {
     interface: IFACE,
     reset: RESET,
     width: usize,
@@ -132,7 +124,7 @@ pub struct Ili9341<IFACE, RESET> {
     landscape: bool,
 }
 
-impl<IFACE, RESET> Ili9341<IFACE, RESET>
+impl<IFACE, RESET> Ili9806<IFACE, RESET>
 where
     IFACE: WriteOnlyDataCommand,
     RESET: OutputPin,
@@ -145,11 +137,11 @@ where
         _display_size: SIZE,
     ) -> Result<Self>
     where
-        DELAY: DelayUs,
+        DELAY: DelayMs<u8>,
         SIZE: DisplaySize,
         MODE: Mode,
     {
-        let mut ili9341 = Ili9341 {
+        let mut ili9806 = Ili9806 {
             interface,
             reset,
             width: SIZE::WIDTH,
@@ -158,10 +150,10 @@ where
         };
 
         // Do hardware reset by holding reset low for at least 10us
-        ili9341.reset.set_low().map_err(|_| DisplayError::RSError)?;
+        ili9806.reset.set_low().map_err(|_| DisplayError::RSError)?;
         let _ = delay.delay_ms(1);
         // Set high for normal operation
-        ili9341
+        ili9806
             .reset
             .set_high()
             .map_err(|_| DisplayError::RSError)?;
@@ -171,29 +163,29 @@ where
         let _ = delay.delay_ms(5);
 
         // Do software reset
-        ili9341.command(Command::SoftwareReset, &[])?;
+        ili9806.command(Command::SoftwareReset, &[])?;
 
         // Wait 5ms after reset before sending commands
         // and 120ms before sending Sleep Out
         let _ = delay.delay_ms(120);
 
-        ili9341.set_orientation(mode)?;
+        ili9806.set_orientation(mode)?;
 
         // Set pixel format to 16 bits per pixel
-        ili9341.command(Command::PixelFormatSet, &[0x55])?;
+        ili9806.command(Command::PixelFormatSet, &[0x55])?;
 
-        ili9341.sleep_mode(ModeState::Off)?;
+        ili9806.sleep_mode(ModeState::Off)?;
 
         // Wait 5ms after Sleep Out before sending commands
         let _ = delay.delay_ms(5);
 
-        ili9341.display_mode(ModeState::On)?;
+        ili9806.display_mode(ModeState::On)?;
 
-        Ok(ili9341)
+        Ok(ili9806)
     }
 }
 
-impl<IFACE, RESET> Ili9341<IFACE, RESET>
+impl<IFACE, RESET> Ili9806<IFACE, RESET>
 where
     IFACE: WriteOnlyDataCommand,
 {
@@ -390,7 +382,7 @@ where
     }
 }
 
-impl<IFACE, RESET> Ili9341<IFACE, RESET> {
+impl<IFACE, RESET> Ili9806<IFACE, RESET> {
     /// Get the current screen width. It can change based on the current orientation
     pub fn width(&self) -> usize {
         self.width
@@ -460,24 +452,132 @@ pub enum FrameRateClockDivision {
 
 #[derive(Clone, Copy)]
 enum Command {
+    NOP = 0x00,
     SoftwareReset = 0x01,
-    MemoryAccessControl = 0x36,
-    PixelFormatSet = 0x3a,
+    ReadDisplayIdentificationInformation = 0x04,
+    ReadNumberOfErrorsOnDSI = 0x05,
+    GetRedChannel = 0x06,
+    GetGreenChannel = 0x07,
+    GetBlueChannel = 0x08,
+    ReadDisplayStatus = 0x09,
+    ReadDisplayPowerMode = 0x0a,
+    ReadDisplayMADCTL = 0x0b,
+    ReadDisplayPixelFormat = 0x0c,
+    ReadDisplayImageMode = 0x0d,
+    ReadDisplaySignalMode = 0x0e,
+    ReadDisplaySelfDiagnosticResult = 0x0f,
     SleepModeOn = 0x10,
     SleepModeOff = 0x11,
+    PartialModeOn = 0x12,
+    NormalDisplayModeOn = 0x13,
+
     InvertOff = 0x20,
     InvertOn = 0x21,
+    AllPixelsOff = 0x22,
+    AllPixelsOn = 0x23,
+    GammeSet = 0x26,
     DisplayOff = 0x28,
     DisplayOn = 0x29,
     ColumnAddressSet = 0x2a,
     PageAddressSet = 0x2b,
     MemoryWrite = 0x2c,
+    MemoryRead = 0x2e,
+
+    PartialArea = 0x30,
     VerticalScrollDefine = 0x33,
+    TearingEffectLineOff = 0x34,
+    TearingEffectLineOn = 0x35,
+    MemoryAccessControl = 0x36,
     VerticalScrollAddr = 0x37,
     IdleModeOff = 0x38,
     IdleModeOn = 0x39,
+    PixelFormatSet = 0x3a,
+    MemoryWriteContinue = 0x3c,
+    MemoryReadContinue = 0x3e,
+
+    WriteTearScanLine = 0x44,
+    ReadScanLine = 0x45,
+
     SetBrightness = 0x51,
+    ReadDisplayBrightness = 0x52,
+    WriteCTRLDisplayValue = 0x53,
+    ReadCTRLDisplayValue = 0x54,
     ContentAdaptiveBrightness = 0x55,
+    ReadContentAdaptiveBrightness = 0x56,
+    WriteCBACMinimumBrightness = 0x5e,
+    ReadCBACMinimumBrightness = 0x5f,
+
+    ReadAutomaticBrightnessControlSelfDiagnosticResult = 0x68,
+
+    ReadBlackWhiteLowBits = 0x70,
+    ReadBkx = 0x71,
+    ReadBky = 0x72,
+    ReadWx = 0x73,
+    ReadWy = 0x74,
+    ReadRedGreenLowBits = 0x75,
+    ReadRx = 0x76,
+    ReadRy = 0x77,
+    ReadGx = 0x78,
+    ReadGy = 0x79,
+    ReadBlueALowBits = 0x7a,
+    ReadBx = 0x7b,
+    ReadBy = 0x7c,
+    ReadAx = 0x7d,
+    ReadAy = 0x7e,
+
+    ReadDDBStart = 0xa1,
+    ReadDDBContinue = 0xa8,
+    ReadFirstChecksum = 0xaa,
+    ReadContinueChecksum = 0xaf,
+
+    InterfaceModeControl = 0xb0,
     NormalModeFrameRate = 0xb1,
     IdleModeFrameRate = 0xb2,
+    PartialModeFrameRate = 0xb3,
+    DisplayInversionControl = 0xb4,
+    BlankinPorchControl = 0xb5,
+    DisplayFunctionControl = 0xb6,
+    EnteryModeSet = 0xb7,
+    DBITypeBInterfaceSetting = 0xb8,
+    PanelControl = 0xb9,
+    SPIInterfaceSetting = 0xba,
+
+    PowerControl1 = 0xc0,
+    PowerControl2 = 0xc1,
+    PowerControl3 = 0xc2,
+    VCOMControl1 = 0xc7,
+    BacklightControl1 = 0xc8,
+    BacklightControl2 = 0xc9,
+    BacklightControl3 = 0xca,
+    BacklightControl4 = 0xcb,
+    BacklightControl5 = 0xcc,
+    BacklightControl6 = 0xcd,
+    BacklightControl7 = 0xce,
+    BacklightControl8 = 0xcf,
+
+    NVMemoryWrite = 0xd0,
+    NVMemoryProtectionKey = 0xd1,
+    NVMemoryStatusRead = 0xd2,
+    ReadDeviceCode = 0xd3,
+    ReadID1 = 0xda,
+    ReadID2 = 0xdb,
+    ReadID3 = 0xdc,
+    EngineeringSetting = 0xdf,
+
+    PositiveGammaControl = 0xe0,
+    NegativeGammaCorrection = 0xe1,
+    DigitalGammaControl1 = 0xe2,
+    DigitalGammaControl2 = 0xe3,
+    Digital3GammaEnable = 0xea,
+    VoltageMeasurementSet = 0xed,
+
+    PanelTimingControl1 = 0xf1,
+    PanelTimingControl2 = 0xf2,
+    DVDDVoltageSetting = 0xf3,
+    PowerControl5 = 0xf5,
+    PanelResolutionSelectionSet = 0xf7,
+    ReadEXTCCommandInSPIMode = 0xfb,
+    LVGLVoltageSetting = 0xfc,
+    ExternalPowerSelectionSet = 0xfd,
+    EXTCCommandSetEnableRegister = 0xff,
 }

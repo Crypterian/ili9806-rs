@@ -15,21 +15,19 @@ mod app {
         prelude::*,
         text::{Alignment, Text},
     };
-    use embedded_hal::digital::{blocking::OutputPin, ErrorType, PinState};
-    use ili9341::{DisplaySize240x320, Ili9341, Orientation};
+    use embedded_hal::digital::v2::{OutputPin, PinState};
+    use ili9806::{DisplaySize480x480, Ili9806, Orientation};
     use stm32f4xx_hal::{
         prelude::*,
         spi::{Mode, NoMiso, Phase, Polarity},
-        timer::Channel,
     };
 
     #[derive(Default)]
     pub struct DummyOutputPin;
-    impl ErrorType for DummyOutputPin {
-        type Error = ();
-    }
 
     impl OutputPin for DummyOutputPin {
+        type Error = ();
+
         fn set_low(&mut self) -> Result<(), Self::Error> {
             Ok(())
         }
@@ -58,7 +56,7 @@ mod app {
         let gpiob = dp.GPIOB.split();
 
         /*
-         *  The ILI9341 driver
+         *  The Ili9806 driver
          */
         let lcd_clk = gpiob.pb0.into_alternate();
         let lcd_miso = NoMiso {};
@@ -75,12 +73,12 @@ mod app {
         let spi_iface = SPIInterface::new(lcd_spi, lcd_dc, lcd_cs);
         let dummy_reset = DummyOutputPin::default();
         let mut delay = dp.TIM1.delay_us(&clocks);
-        let mut lcd = Ili9341::new(
+        let mut lcd = Ili9806::new(
             spi_iface,
             dummy_reset,
             &mut delay,
             Orientation::PortraitFlipped,
-            DisplaySize240x320,
+            DisplaySize480x480,
         )
         .unwrap();
 

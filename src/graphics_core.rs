@@ -1,17 +1,17 @@
-use crate::Ili9341;
+use crate::Ili9806;
 use embedded_graphics_core::{
     pixelcolor::{raw::RawU16, Rgb565},
     prelude::*,
     primitives::Rectangle,
 };
 
-impl<IFACE, RESET> OriginDimensions for Ili9341<IFACE, RESET> {
+impl<IFACE, RESET> OriginDimensions for Ili9806<IFACE, RESET> {
     fn size(&self) -> Size {
         Size::new(self.width() as u32, self.height() as u32)
     }
 }
 
-impl<IFACE, RESET> DrawTarget for Ili9341<IFACE, RESET>
+impl<IFACE, RESET> DrawTarget for Ili9806<IFACE, RESET>
 where
     IFACE: display_interface::WriteOnlyDataCommand,
 {
