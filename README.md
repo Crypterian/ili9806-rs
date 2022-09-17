@@ -1,7 +1,6 @@
-# `ili9341`
+# `ili9806`
 
-> A platform agnostic driver to interface with the ILI9341 (and ILI9340C) TFT
-> LCD display
+> A platform agnostic driver to interface with the ILI9806 TFT LCD display
 
 ## What works
 
@@ -9,13 +8,6 @@
 - Change the screen orientation
 - Hardware scrolling
 - Compatible with [embedded-graphics](https://docs.rs/embedded-graphics)
-
-## TODO
-
-- [ ] Expose more configuration options
-- [ ] Read video memory
-- [ ] DMA API
-- ???
 
 ## Examples
 
